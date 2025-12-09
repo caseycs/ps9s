@@ -1,0 +1,185 @@
+package ui
+
+import (
+	"context"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/ilia/ps9s/internal/aws"
+	"github.com/ilia/ps9s/internal/config"
+	"github.com/ilia/ps9s/internal/types"
+	"github.com/ilia/ps9s/internal/ui/screens"
+)
+
+// Screen represents the current screen being displayed
+type Screen int
+
+const (
+	ProfileSelectorScreen Screen = iota
+	RegionSelectorScreen
+	ParameterListScreen
+	ParameterViewScreen
+	ParameterEditScreen
+)
+
+// Model represents the root application model
+type Model struct {
+	currentScreen Screen
+
+	// Screen models
+	profileSelector screens.ProfileSelectorModel
+	regionSelector  screens.RegionSelectorModel
+	parameterList   screens.ParameterListModel
+	parameterView   screens.ParameterViewModel
+	parameterEdit   screens.ParameterEditModel
+
+	// Shared state
+	profiles       []string
+	currentProfile string
+	currentRegion  string
+	awsClients     map[string]*aws.Client
+	regionMapping  *config.RegionMapping
+
+	// UI dimensions
+	width, height int
+}
+
+// NewModel creates a new root model
+func NewModel(profiles []string, clientPool map[string]*aws.Client, regionMapping *config.RegionMapping) Model {
+	return Model{
+		currentScreen:   ProfileSelectorScreen,
+		profileSelector: screens.NewProfileSelector(profiles),
+		regionSelector:  screens.NewRegionSelector(),
+		parameterList:   screens.NewParameterList(),
+		parameterView:   screens.NewParameterView(),
+		parameterEdit:   screens.NewParameterEdit(),
+		profiles:        profiles,
+		awsClients:      clientPool,
+		regionMapping:   regionMapping,
+	}
+}
+
+// Init initializes the root model
+func (m Model) Init() tea.Cmd {
+	return m.profileSelector.Init()
+}
+
+// Update handles messages for the root model
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+		// Propagate size to all screens
+		m.profileSelector.SetSize(msg.Width, msg.Height)
+		m.regionSelector.SetSize(msg.Width, msg.Height)
+		m.parameterList.SetSize(msg.Width, msg.Height)
+		m.parameterView.SetSize(msg.Width, msg.Height)
+		m.parameterEdit.SetSize(msg.Width, msg.Height)
+
+	case types.ProfileSelectedMsg:
+		m.currentProfile = msg.Profile
+		m.currentScreen = RegionSelectorScreen
+		// Set default region for this profile if it exists
+		if lastRegion, ok := m.regionMapping.ProfileRegions[msg.Profile]; ok {
+			m.regionSelector.SetDefaultRegion(lastRegion)
+		}
+		return m, nil
+
+	case types.RegionSelectedMsg:
+		m.currentRegion = msg.Region
+		m.currentScreen = ParameterListScreen
+
+		// Save the region selection for this profile
+		m.regionMapping.ProfileRegions[m.currentProfile] = msg.Region
+		if err := config.SaveRegionMapping(m.regionMapping); err != nil {
+			// TODO: Show error in UI (non-fatal, continue anyway)
+		}
+
+		// Create/update client with selected region
+		client, err := aws.NewClientWithRegion(context.Background(), m.currentProfile, msg.Region)
+		if err != nil {
+			// TODO: Show error in UI
+			return m, nil
+		}
+		m.awsClients[m.currentProfile] = client
+		return m, m.parameterList.LoadParameters(client)
+
+	case types.ViewParameterMsg:
+		m.currentScreen = ParameterViewScreen
+		client := m.awsClients[m.currentProfile]
+		return m, m.parameterView.LoadParameter(msg.Parameter, client)
+
+	case types.EditParameterMsg:
+		m.currentScreen = ParameterEditScreen
+		client := m.awsClients[m.currentProfile]
+		return m, m.parameterEdit.LoadParameter(msg.Parameter, client, msg.JSONKey)
+
+	case types.SaveSuccessMsg:
+		// Parameter saved successfully, update the view and go back
+		m.parameterView.LoadParameter(msg.Parameter, m.awsClients[m.currentProfile])
+		m.currentScreen = ParameterViewScreen
+		return m, nil
+
+	case types.BackMsg:
+		// Navigate back through screens
+		switch m.currentScreen {
+		case RegionSelectorScreen:
+			m.currentScreen = ProfileSelectorScreen
+		case ParameterListScreen:
+			m.currentScreen = RegionSelectorScreen
+		case ParameterViewScreen:
+			m.currentScreen = ParameterListScreen
+		case ParameterEditScreen:
+			m.currentScreen = ParameterViewScreen
+		}
+		return m, nil
+
+	case tea.KeyMsg:
+		// Handle global quit
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+	}
+
+	// Route to active screen
+	return m.updateCurrentScreen(msg)
+}
+
+// updateCurrentScreen routes the message to the currently active screen
+func (m Model) updateCurrentScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch m.currentScreen {
+	case ProfileSelectorScreen:
+		m.profileSelector, cmd = m.profileSelector.Update(msg)
+	case RegionSelectorScreen:
+		m.regionSelector, cmd = m.regionSelector.Update(msg)
+	case ParameterListScreen:
+		m.parameterList, cmd = m.parameterList.Update(msg)
+	case ParameterViewScreen:
+		m.parameterView, cmd = m.parameterView.Update(msg)
+	case ParameterEditScreen:
+		m.parameterEdit, cmd = m.parameterEdit.Update(msg)
+	}
+
+	return m, cmd
+}
+
+// View renders the current screen
+func (m Model) View() string {
+	switch m.currentScreen {
+	case ProfileSelectorScreen:
+		return m.profileSelector.View()
+	case RegionSelectorScreen:
+		return m.regionSelector.View()
+	case ParameterListScreen:
+		return m.parameterList.View()
+	case ParameterViewScreen:
+		return m.parameterView.View()
+	case ParameterEditScreen:
+		return m.parameterEdit.View()
+	default:
+		return "Unknown screen"
+	}
+}
