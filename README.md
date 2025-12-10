@@ -10,6 +10,7 @@ A beautiful terminal user interface (TUI) for managing AWS Systems Manager Param
 - **View & Edit**: View parameter details and edit values inline
 - **SecureString Support**: Automatically decrypts SecureString parameters (requires KMS permissions)
 - **All Parameter Types**: Supports String, StringList, and SecureString types
+- **Copy to Clipboard**: Press 'c' on the parameter view screen to copy the selected value (or whole parameter value) to your system clipboard
 
 ## Installation
 
@@ -17,7 +18,7 @@ A beautiful terminal user interface (TUI) for managing AWS Systems Manager Param
 
 ```bash
 # Clone the repository
-git clone https://github.com/ilia/ps9s.git
+git clone https://github.com/caseycs/ps9s.git
 cd ps9s
 
 # Build the binary
@@ -30,7 +31,7 @@ sudo mv ps9s /usr/local/bin/
 ### Using Go Install
 
 ```bash
-go install github.com/ilia/ps9s/cmd/ps9s@latest
+go install github.com/caseycs/ps9s/cmd/ps9s@latest
 ```
 
 ## Prerequisites

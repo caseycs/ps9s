@@ -51,15 +51,17 @@ func (d paramDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 
 // ParameterListModel represents the parameter list screen
 type ParameterListModel struct {
-	parameters   []*aws.Parameter
-	filtered     []*aws.Parameter
-	list         list.Model
-	searchInput  textinput.Model
-	spinner      spinner.Model
-	loading      bool
-	searchActive bool
-	client       *aws.Client
-	err          error
+	parameters     []*aws.Parameter
+	filtered       []*aws.Parameter
+	list           list.Model
+	searchInput    textinput.Model
+	spinner        spinner.Model
+	loading        bool
+	searchActive   bool
+	client         *aws.Client
+	err            error
+	currentProfile string
+	currentRegion  string
 }
 
 // NewParameterList creates a new parameter list screen
@@ -122,7 +124,7 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 		m.filtered = msg.Parameters
 		m.loading = false
 		m.updateList()
-		m.list.Title = fmt.Sprintf("Parameters (%d)", len(m.parameters))
+		m.updateListTitle()
 		return m, nil
 
 	case types.ErrorMsg:
@@ -179,6 +181,13 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 						return types.ViewParameterMsg{Parameter: item.param}
 					}
 				}
+			case "e":
+				// View selected parameter (shortcut)
+				if item, ok := m.list.SelectedItem().(parameterItem); ok {
+					return m, func() tea.Msg {
+						return types.ViewParameterMsg{Parameter: item.param}
+					}
+				}
 			case "backspace", "esc":
 				return m, func() tea.Msg { return types.BackMsg{} }
 			case "q", "ctrl+c":
@@ -223,7 +232,7 @@ func (m ParameterListModel) View() string {
 		b.WriteString("\n")
 		b.WriteString(styles.HelpStyle.Render("Press 'esc' to cancel search, 'enter' to apply"))
 	} else {
-		help := "Press 'enter' to view • '/' to search • 'esc' to go back • 'q' to quit"
+		help := "Press 'enter' to view • 'e' to view • '/' to search • 'esc' to go back • 'q' to quit"
 		if len(m.filtered) != len(m.parameters) {
 			help = fmt.Sprintf("Filtered: %d/%d • ", len(m.filtered), len(m.parameters)) + help
 		}
@@ -231,6 +240,13 @@ func (m ParameterListModel) View() string {
 	}
 
 	return b.String()
+}
+
+// SetContext sets profile/region context for the list
+func (m *ParameterListModel) SetContext(profile, region string) {
+	m.currentProfile = profile
+	m.currentRegion = region
+	m.updateListTitle()
 }
 
 // SetSize updates the dimensions of the parameter list
@@ -257,7 +273,7 @@ func (m *ParameterListModel) filterParameters() {
 		}
 	}
 	m.updateList()
-	m.list.Title = fmt.Sprintf("Parameters (%d/%d)", len(m.filtered), len(m.parameters))
+	m.updateListTitle()
 }
 
 // updateList updates the list items with filtered parameters
@@ -267,4 +283,24 @@ func (m *ParameterListModel) updateList() {
 		items[i] = parameterItem{param: p}
 	}
 	m.list.SetItems(items)
+}
+
+// updateListTitle updates the title to include profile and region
+func (m *ParameterListModel) updateListTitle() {
+	// Safe defaults
+	profile := m.currentProfile
+	region := m.currentRegion
+	if profile == "" {
+		profile = "-"
+	}
+	if region == "" {
+		region = "-"
+	}
+
+	if len(m.filtered) != len(m.parameters) {
+		m.list.Title = fmt.Sprintf("%s : %s : Parameters (%d/%d)", profile, region, len(m.filtered), len(m.parameters))
+		return
+	}
+
+	m.list.Title = fmt.Sprintf("%s : %s : Parameters (%d)", profile, region, len(m.parameters))
 }

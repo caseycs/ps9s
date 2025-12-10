@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,18 +26,36 @@ type jsonKeyItem struct {
 
 func (i jsonKeyItem) FilterValue() string { return i.key }
 
+// clearStatusMsg is used internally to clear transient status messages
+type clearStatusMsg struct{}
+
+// copyResultMsg is sent from the async copy command to report result
+type copyResultMsg struct {
+	Err  error
+	Text string
+}
+
 // ParameterViewModel represents the parameter view screen
 type ParameterViewModel struct {
-	parameter     *aws.Parameter
-	client        *aws.Client
-	viewport      viewport.Model
-	spinner       spinner.Model
-	loading       bool
-	ready         bool
-	err           error
-	isJSON        bool
-	jsonKeys      []jsonKeyItem
-	selectedIndex int
+	parameter      *aws.Parameter
+	client         *aws.Client
+	viewport       viewport.Model
+	spinner        spinner.Model
+	loading        bool
+	ready          bool
+	err            error
+	status         string
+	isJSON         bool
+	jsonKeys       []jsonKeyItem
+	currentProfile string
+	currentRegion  string
+	selectedIndex  int
+}
+
+// SetContext sets the profile and region context for the view screen
+func (m *ParameterViewModel) SetContext(profile, region string) {
+	m.currentProfile = profile
+	m.currentRegion = region
 }
 
 // NewParameterView creates a new parameter view screen
@@ -64,6 +84,7 @@ func (m *ParameterViewModel) LoadParameter(param *aws.Parameter, client *aws.Cli
 	m.parameter = param
 	m.loading = true
 	m.err = nil
+	m.status = ""
 
 	return tea.Batch(
 		m.spinner.Tick,
@@ -104,6 +125,18 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 		m.err = msg.Err
 		return m, nil
 
+	case copyResultMsg:
+		if msg.Err != nil {
+			m.status = fmt.Sprintf("Copy failed: %v", msg.Err)
+		} else {
+			m.status = "Copied to clipboard"
+		}
+		return m, nil
+
+	case clearStatusMsg:
+		m.status = ""
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		if !m.ready {
 			m.viewport = viewport.New(msg.Width-4, msg.Height-6)
@@ -141,6 +174,30 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 					return types.EditParameterMsg{Parameter: m.parameter}
 				}
 			}
+		case "c":
+			// Copy selected value (either JSON key value or whole parameter)
+			if m.parameter == nil {
+				return m, nil
+			}
+			var toCopy string
+			if m.isJSON && len(m.jsonKeys) > 0 {
+				toCopy = m.jsonKeys[m.selectedIndex].value
+			} else {
+				toCopy = m.parameter.Value
+			}
+
+			// Async copy command + delayed clear status
+			copyCmd := func() tea.Msg {
+				err := clipboard.WriteAll(toCopy)
+				return copyResultMsg{Err: err, Text: toCopy}
+			}
+
+			clearCmd := func() tea.Msg {
+				time.Sleep(2 * time.Second)
+				return clearStatusMsg{}
+			}
+
+			return m, tea.Batch(copyCmd, clearCmd)
 		case "up", "k":
 			if m.isJSON && len(m.jsonKeys) > 0 {
 				if m.selectedIndex > 0 {
@@ -194,7 +251,17 @@ func (m ParameterViewModel) View() string {
 
 	var b strings.Builder
 
-	b.WriteString(styles.TitleStyle.Render(m.parameter.Name))
+	// Build title with profile and region
+	profile := m.currentProfile
+	region := m.currentRegion
+	if profile == "" {
+		profile = "-"
+	}
+	if region == "" {
+		region = "-"
+	}
+	title := fmt.Sprintf("%s : %s : %s", profile, region, m.parameter.Name)
+	b.WriteString(styles.TitleStyle.Render(title))
 	b.WriteString("\n\n")
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n\n")
@@ -203,8 +270,13 @@ func (m ParameterViewModel) View() string {
 	if m.isJSON && len(m.jsonKeys) > 0 {
 		helpText += " selected key • ↑/↓ to select"
 	}
-	helpText += " • 'esc' to go back • 'q' to quit"
+	helpText += " • 'c' to copy • 'esc' to go back • 'q' to quit"
 	b.WriteString(styles.HelpStyle.Render(helpText))
+
+	if m.status != "" {
+		b.WriteString("\n")
+		b.WriteString(styles.LabelStyle.Render(m.status))
+	}
 
 	return b.String()
 }
@@ -347,7 +419,7 @@ func (m ParameterViewModel) formatParameterDetails(p *aws.Parameter) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1, 2).
-		Width(m.viewport.Width - 4).
+		Width(m.viewport.Width - 6).
 		Render(valueContent)
 
 	b.WriteString(valueBox)

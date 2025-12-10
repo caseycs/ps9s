@@ -17,17 +17,19 @@ import (
 
 // ParameterEditModel represents the parameter edit screen
 type ParameterEditModel struct {
-	parameter   *aws.Parameter
-	client      *aws.Client
-	isJSON      bool
-	jsonData    map[string]interface{} // Parsed JSON
-	textarea    textarea.Model         // Value editor
-	selectedKey string                 // Currently selected key path
-	spinner     spinner.Model
-	saving      bool
-	err         error
-	width       int
-	height      int
+	parameter      *aws.Parameter
+	client         *aws.Client
+	isJSON         bool
+	jsonData       map[string]interface{} // Parsed JSON
+	textarea       textarea.Model         // Value editor
+	selectedKey    string                 // Currently selected key path
+	spinner        spinner.Model
+	saving         bool
+	err            error
+	width          int
+	height         int
+	currentProfile string
+	currentRegion  string
 }
 
 // NewParameterEdit creates a new parameter edit screen
@@ -371,7 +373,16 @@ func (m ParameterEditModel) View() string {
 	var b strings.Builder
 
 	if m.parameter != nil {
-		b.WriteString(styles.TitleStyle.Render(m.parameter.Name))
+		profile := m.currentProfile
+		region := m.currentRegion
+		if profile == "" {
+			profile = "-"
+		}
+		if region == "" {
+			region = "-"
+		}
+		title := fmt.Sprintf("%s : %s : %s", profile, region, m.parameter.Name)
+		b.WriteString(styles.TitleStyle.Render(title))
 		b.WriteString("\n\n")
 	}
 
@@ -397,6 +408,12 @@ func (m ParameterEditModel) View() string {
 	b.WriteString(styles.HelpStyle.Render(helpText))
 
 	return b.String()
+}
+
+// SetContext sets the profile and region context for the edit screen
+func (m *ParameterEditModel) SetContext(profile, region string) {
+	m.currentProfile = profile
+	m.currentRegion = region
 }
 
 // SetSize updates the dimensions of the parameter edit screen

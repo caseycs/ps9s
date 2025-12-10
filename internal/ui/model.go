@@ -103,23 +103,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.awsClients[m.currentProfile] = client
+
+		// Pass profile/region context to parameter list screen
+		m.parameterList.SetContext(m.currentProfile, msg.Region)
+
 		return m, m.parameterList.LoadParameters(client)
 
 	case types.ViewParameterMsg:
 		m.currentScreen = ParameterViewScreen
 		client := m.awsClients[m.currentProfile]
+		// Pass profile/region context to parameter view
+		m.parameterView.SetContext(m.currentProfile, m.currentRegion)
 		return m, m.parameterView.LoadParameter(msg.Parameter, client)
 
 	case types.EditParameterMsg:
 		m.currentScreen = ParameterEditScreen
 		client := m.awsClients[m.currentProfile]
+		// Pass profile/region context tameter edit
+		m.parameterEdit.SetContext(m.currentProfile, m.currentRegion)
 		return m, m.parameterEdit.LoadParameter(msg.Parameter, client, msg.JSONKey)
 
 	case types.SaveSuccessMsg:
 		// Parameter saved successfully, update the view and go back
-		m.parameterView.LoadParameter(msg.Parameter, m.awsClients[m.currentProfile])
+		// Ensure view has current profile/region
+		m.parameterView.SetContext(m.currentProfile, m.currentRegion)
+		// Load the updated parameter and return the command so Bubble Tea executes it
+		cmd := m.parameterView.LoadParameter(msg.Parameter, m.awsClients[m.currentProfile])
 		m.currentScreen = ParameterViewScreen
-		return m, nil
+		return m, cmd
 
 	case types.BackMsg:
 		// Navigate back through screens
