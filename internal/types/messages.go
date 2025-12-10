@@ -51,3 +51,6 @@ type SwitchRecentMsg struct {
 	Profile string
 	Region  string
 }
+
+// GoToProfileSelectionMsg is sent when user wants to jump to profile selection
+type GoToProfileSelectionMsg struct{}

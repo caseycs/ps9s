@@ -115,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.awsClients[m.currentProfile] = client
 
-		// Record recent entry and persist
+		// Record recent entry and persist (keep last 5)
 		entry := config.RecentEntry{Profile: m.currentProfile, Region: msg.Region}
 		m.recents = config.AddRecentEntry(m.recents, entry, 5)
 		_ = config.SaveRecentEntries(m.recents)
@@ -166,15 +166,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.awsClients[m.currentProfile] = client
 
-		// Update recents (move to front)
-		entry := config.RecentEntry{Profile: m.currentProfile, Region: m.currentRegion}
-		m.recents = config.AddRecentEntry(m.recents, entry, 5)
-		_ = config.SaveRecentEntries(m.recents)
-		m.parameterList.SetRecents(m.recents)
+		// Don't reorder recents when switching via keyboard - keep list stable
+		// The list only reorders when selecting from the profile/region screens
 
 		m.parameterList.SetContext(m.currentProfile, m.currentRegion)
 		m.currentScreen = ParameterListScreen
 		return m, m.parameterList.LoadParameters(client)
+
+	case types.GoToProfileSelectionMsg:
+		// Jump directly to profile selection screen
+		m.currentScreen = ProfileSelectorScreen
+		return m, nil
 
 	case types.BackMsg:
 		// Navigate back through screens

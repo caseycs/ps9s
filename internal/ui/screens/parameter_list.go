@@ -142,9 +142,13 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
-		h := msg.Height - 6 // Leave space for help text, search and recents
+		h := msg.Height - 7 // Leave space for help text, search and recents (5 lines)
 		if m.searchActive {
 			h -= 2
+		}
+		// Additional space for recents if present
+		if len(m.recents) > 0 {
+			h -= 7 // 1 label line + 5 recent entries + 1 spacing
 		}
 		m.list.SetHeight(h)
 		return m, nil
@@ -196,6 +200,9 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 						return types.ViewParameterMsg{Parameter: item.param}
 					}
 				}
+			case "p":
+				// Jump to profile selection
+				return m, func() tea.Msg { return types.GoToProfileSelectionMsg{} }
 			case "backspace", "esc":
 				return m, func() tea.Msg { return types.BackMsg{} }
 			case "q", "ctrl+c":
@@ -205,6 +212,10 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 				idx := int(msg.String()[0] - '1')
 				if idx >= 0 && idx < len(m.recents) {
 					e := m.recents[idx]
+					// Don't reload if already on this profile+region
+					if e.Profile == m.currentProfile && e.Region == m.currentRegion {
+						return m, nil
+					}
 					return m, func() tea.Msg {
 						return types.SwitchRecentMsg{Profile: e.Profile, Region: e.Region}
 					}
@@ -249,7 +260,7 @@ func (m ParameterListModel) View() string {
 		b.WriteString("\n")
 		b.WriteString(styles.HelpStyle.Render("Press 'esc' to cancel search, 'enter' to apply"))
 	} else {
-		help := "Press 'enter' to view • 'e' to view • '/' to search • 'esc' to go back • 'q' to quit"
+		help := "Press 'enter' to view • 'e' to view • '/' to search • 'p' for profile • 'esc' to go back • 'q' to quit"
 		if len(m.filtered) != len(m.parameters) {
 			help = fmt.Sprintf("Filtered: %d/%d • ", len(m.filtered), len(m.parameters)) + help
 		}
@@ -260,7 +271,7 @@ func (m ParameterListModel) View() string {
 		b.WriteString(styles.HelpStyle.Render(help))
 	}
 
-	// Render recents at bottom
+	// Render recents at bottom (max 5)
 	if len(m.recents) > 0 {
 		b.WriteString("\n\n")
 		b.WriteString(styles.LabelStyle.Render("Recent lists: "))
@@ -269,7 +280,12 @@ func (m ParameterListModel) View() string {
 			if i >= 5 {
 				break
 			}
-			b.WriteString(fmt.Sprintf(" %d) %s : %s\n", i+1, r.Profile, r.Region))
+			line := fmt.Sprintf(" %d) %s : %s", i+1, r.Profile, r.Region)
+			// Mark current context as inactive
+			if r.Profile == m.currentProfile && r.Region == m.currentRegion {
+				line = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line + " (current)")
+			}
+			b.WriteString(line + "\n")
 		}
 	}
 
@@ -286,9 +302,13 @@ func (m *ParameterListModel) SetContext(profile, region string) {
 // SetSize updates the dimensions of the parameter list
 func (m *ParameterListModel) SetSize(width, height int) {
 	m.list.SetWidth(width)
-	h := height - 4
+	h := height - 7 // Leave space for help text, search and recents (5 lines)
 	if m.searchActive {
 		h -= 2
+	}
+	// Additional space for recents if present
+	if len(m.recents) > 0 {
+		h -= 7 // 1 label line + 5 recent entries + 1 spacing
 	}
 	m.list.SetHeight(h)
 }

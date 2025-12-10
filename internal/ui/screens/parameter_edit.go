@@ -382,22 +382,22 @@ func (m ParameterEditModel) View() string {
 			region = "-"
 		}
 		title := fmt.Sprintf("%s : %s : %s", profile, region, m.parameter.Name)
-		b.WriteString(styles.TitleStyle.Render(title))
+		b.WriteString("  " + styles.TitleStyle.Render(title))
 		b.WriteString("\n\n")
 	}
 
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+		b.WriteString("  " + styles.ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
 		b.WriteString("\n\n")
 	}
 
 	// Show value editor
 	if m.isJSON && m.selectedKey != "" {
-		b.WriteString(styles.LabelStyle.Render("Editing: "))
+		b.WriteString("  " + styles.LabelStyle.Render("Editing: "))
 		b.WriteString(m.selectedKey)
 		b.WriteString("\n\n")
 	} else {
-		b.WriteString(styles.LabelStyle.Render("Edit Value:"))
+		b.WriteString("  " + styles.LabelStyle.Render("Edit Value:"))
 		b.WriteString("\n\n")
 	}
 
@@ -405,7 +405,7 @@ func (m ParameterEditModel) View() string {
 	b.WriteString("\n\n")
 
 	helpText := "Press 'ctrl+s' to save • 'esc' to cancel • 'ctrl+c' to quit"
-	b.WriteString(styles.HelpStyle.Render(helpText))
+	b.WriteString("  " + styles.HelpStyle.Render(helpText))
 
 	return b.String()
 }

@@ -139,7 +139,7 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width-4, msg.Height-6)
+			m.viewport = viewport.New(msg.Width-4, msg.Height-10)
 			m.viewport.Style = lipgloss.NewStyle().Padding(1, 2)
 			if m.parameter != nil {
 				m.viewport.SetContent(m.formatParameterDetails(m.parameter))
@@ -147,7 +147,7 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width - 4
-			m.viewport.Height = msg.Height - 6
+			m.viewport.Height = msg.Height - 10
 		}
 		return m, nil
 
@@ -261,7 +261,7 @@ func (m ParameterViewModel) View() string {
 		region = "-"
 	}
 	title := fmt.Sprintf("%s : %s : %s", profile, region, m.parameter.Name)
-	b.WriteString(styles.TitleStyle.Render(title))
+	b.WriteString("  " + styles.TitleStyle.Render(title))
 	b.WriteString("\n\n")
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n\n")
@@ -271,11 +271,12 @@ func (m ParameterViewModel) View() string {
 		helpText += " selected key • ↑/↓ to select"
 	}
 	helpText += " • 'c' to copy • 'esc' to go back • 'q' to quit"
-	b.WriteString(styles.HelpStyle.Render(helpText))
+	b.WriteString("  " + styles.HelpStyle.Render(helpText))
 
+	// Always reserve a line for status message
+	b.WriteString("\n")
 	if m.status != "" {
-		b.WriteString("\n")
-		b.WriteString(styles.LabelStyle.Render(m.status))
+		b.WriteString("  " + styles.LabelStyle.Render(m.status))
 	}
 
 	return b.String()
@@ -284,7 +285,7 @@ func (m ParameterViewModel) View() string {
 // SetSize updates the dimensions of the parameter view
 func (m *ParameterViewModel) SetSize(width, height int) {
 	m.viewport.Width = width - 4
-	m.viewport.Height = height - 6
+	m.viewport.Height = height - 10
 }
 
 // isValidJSON checks if a string is valid JSON
