@@ -123,3 +123,83 @@ func SaveRegionMapping(mapping *RegionMapping) error {
 
 	return nil
 }
+
+// RecentEntry represents a recently viewed parameter list (profile + region)
+type RecentEntry struct {
+	Profile string `json:"profile"`
+	Region  string `json:"region"`
+}
+
+// LoadRecentEntries loads recent entries from config file
+// Returns empty slice if file doesn't exist
+func LoadRecentEntries() ([]RecentEntry, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return nil, err
+	}
+
+	configFile := filepath.Join(configDir, "recents.json")
+
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		return []RecentEntry{}, nil
+	}
+
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read recents file: %w", err)
+	}
+
+	var entries []RecentEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("failed to parse recents file: %w", err)
+	}
+
+	return entries, nil
+}
+
+// SaveRecentEntries saves recent entries to config file
+func SaveRecentEntries(entries []RecentEntry) error {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	configFile := filepath.Join(configDir, "recents.json")
+
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal recents: %w", err)
+	}
+
+	if err := os.WriteFile(configFile, data, 0644); err != nil {
+		return fmt.Errorf("failed to write recents file: %w", err)
+	}
+
+	return nil
+}
+
+// AddRecentEntry inserts an entry into the recents list, keeping uniqueness and max size
+func AddRecentEntry(entries []RecentEntry, e RecentEntry, max int) []RecentEntry {
+	// Remove any existing matching entry
+	newList := make([]RecentEntry, 0, len(entries)+1)
+	for _, ent := range entries {
+		if ent.Profile == e.Profile && ent.Region == e.Region {
+			continue
+		}
+		newList = append(newList, ent)
+	}
+
+	// Prepend
+	newList = append([]RecentEntry{e}, newList...)
+
+	// Truncate to max
+	if len(newList) > max {
+		newList = newList[:max]
+	}
+
+	return newList
+}

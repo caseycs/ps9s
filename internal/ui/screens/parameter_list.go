@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ilia/ps9s/internal/aws"
+	cfg "github.com/ilia/ps9s/internal/config"
 	"github.com/ilia/ps9s/internal/styles"
 	"github.com/ilia/ps9s/internal/types"
 )
@@ -62,6 +63,8 @@ type ParameterListModel struct {
 	err            error
 	currentProfile string
 	currentRegion  string
+	// Recent profile+region entries (most recent first)
+	recents []cfg.RecentEntry
 }
 
 // NewParameterList creates a new parameter list screen
@@ -116,6 +119,11 @@ func (m *ParameterListModel) LoadParameters(client *aws.Client) tea.Cmd {
 	)
 }
 
+// SetRecents updates recent entries shown on the list screen
+func (m *ParameterListModel) SetRecents(entries []cfg.RecentEntry) {
+	m.recents = entries
+}
+
 // Update handles messages for the parameter list
 func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -134,7 +142,7 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
-		h := msg.Height - 4 // Leave space for help text and search
+		h := msg.Height - 6 // Leave space for help text, search and recents
 		if m.searchActive {
 			h -= 2
 		}
@@ -192,6 +200,15 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 				return m, func() tea.Msg { return types.BackMsg{} }
 			case "q", "ctrl+c":
 				return m, tea.Quit
+			case "1", "2", "3", "4", "5":
+				// Switch to a recent entry if present
+				idx := int(msg.String()[0] - '1')
+				if idx >= 0 && idx < len(m.recents) {
+					e := m.recents[idx]
+					return m, func() tea.Msg {
+						return types.SwitchRecentMsg{Profile: e.Profile, Region: e.Region}
+					}
+				}
 			}
 		}
 	}
@@ -236,7 +253,24 @@ func (m ParameterListModel) View() string {
 		if len(m.filtered) != len(m.parameters) {
 			help = fmt.Sprintf("Filtered: %d/%d • ", len(m.filtered), len(m.parameters)) + help
 		}
+		// If we have recent entries, mention keys 1-5
+		if len(m.recents) > 0 {
+			help += " • press 1-5 to switch recent profile/region"
+		}
 		b.WriteString(styles.HelpStyle.Render(help))
+	}
+
+	// Render recents at bottom
+	if len(m.recents) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(styles.LabelStyle.Render("Recent lists: "))
+		b.WriteString("\n")
+		for i, r := range m.recents {
+			if i >= 5 {
+				break
+			}
+			b.WriteString(fmt.Sprintf(" %d) %s : %s\n", i+1, r.Profile, r.Region))
+		}
 	}
 
 	return b.String()

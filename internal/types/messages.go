@@ -45,3 +45,9 @@ type ParametersLoadedMsg struct {
 type ParameterValueLoadedMsg struct {
 	Parameter *aws.Parameter
 }
+
+// SwitchRecentMsg is sent when user selects a recent profile+region entry
+type SwitchRecentMsg struct {
+	Profile string
+	Region  string
+}

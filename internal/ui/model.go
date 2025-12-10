@@ -38,6 +38,8 @@ type Model struct {
 	currentRegion  string
 	awsClients     map[string]*aws.Client
 	regionMapping  *config.RegionMapping
+	// Recent profile+region entries (most recent first)
+	recents []config.RecentEntry
 
 	// UI dimensions
 	width, height int
@@ -45,16 +47,25 @@ type Model struct {
 
 // NewModel creates a new root model
 func NewModel(profiles []string, clientPool map[string]*aws.Client, regionMapping *config.RegionMapping) Model {
+	pl := screens.NewParameterList()
+
+	// Load recents (non-fatal)
+	recents, err := config.LoadRecentEntries()
+	if err == nil {
+		pl.SetRecents(recents)
+	}
+
 	return Model{
 		currentScreen:   ProfileSelectorScreen,
 		profileSelector: screens.NewProfileSelector(profiles),
 		regionSelector:  screens.NewRegionSelector(),
-		parameterList:   screens.NewParameterList(),
+		parameterList:   pl,
 		parameterView:   screens.NewParameterView(),
 		parameterEdit:   screens.NewParameterEdit(),
 		profiles:        profiles,
 		awsClients:      clientPool,
 		regionMapping:   regionMapping,
+		recents:         recents,
 	}
 }
 
@@ -104,6 +115,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.awsClients[m.currentProfile] = client
 
+		// Record recent entry and persist
+		entry := config.RecentEntry{Profile: m.currentProfile, Region: msg.Region}
+		m.recents = config.AddRecentEntry(m.recents, entry, 5)
+		_ = config.SaveRecentEntries(m.recents)
+		m.parameterList.SetRecents(m.recents)
+
 		// Pass profile/region context to parameter list screen
 		m.parameterList.SetContext(m.currentProfile, msg.Region)
 
@@ -131,6 +148,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.parameterView.LoadParameter(msg.Parameter, m.awsClients[m.currentProfile])
 		m.currentScreen = ParameterViewScreen
 		return m, cmd
+
+	case types.SwitchRecentMsg:
+		// User selected a recent profile+region entry from the list
+		m.currentProfile = msg.Profile
+		m.currentRegion = msg.Region
+
+		// Save region mapping
+		m.regionMapping.ProfileRegions[m.currentProfile] = m.currentRegion
+		_ = config.SaveRegionMapping(m.regionMapping)
+
+		// Create/update client
+		client, err := aws.NewClientWithRegion(context.Background(), m.currentProfile, m.currentRegion)
+		if err != nil {
+			// TODO: show error
+			return m, nil
+		}
+		m.awsClients[m.currentProfile] = client
+
+		// Update recents (move to front)
+		entry := config.RecentEntry{Profile: m.currentProfile, Region: m.currentRegion}
+		m.recents = config.AddRecentEntry(m.recents, entry, 5)
+		_ = config.SaveRecentEntries(m.recents)
+		m.parameterList.SetRecents(m.recents)
+
+		m.parameterList.SetContext(m.currentProfile, m.currentRegion)
+		m.currentScreen = ParameterListScreen
+		return m, m.parameterList.LoadParameters(client)
 
 	case types.BackMsg:
 		// Navigate back through screens
