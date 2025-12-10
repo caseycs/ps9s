@@ -86,6 +86,7 @@ func NewParameterList() ParameterListModel {
 	l.Title = "Parameters"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
+	l.SetShowHelp(false) // Use custom integrated help
 	l.Styles.Title = styles.TitleStyle
 	l.Styles.PaginationStyle = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
 	l.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
@@ -258,15 +259,12 @@ func (m ParameterListModel) View() string {
 		b.WriteString(styles.LabelStyle.Render("Search: "))
 		b.WriteString(m.searchInput.View())
 		b.WriteString("\n")
-		b.WriteString(styles.HelpStyle.Render("Press 'esc' to cancel search, 'enter' to apply"))
+		b.WriteString(styles.HelpStyle.Render("esc: cancel • enter: apply"))
 	} else {
-		help := "Press 'enter' to view • 'e' to view • '/' to search • 'p' for profile • 'esc' to go back • 'q' to quit"
-		if len(m.filtered) != len(m.parameters) {
-			help = fmt.Sprintf("Filtered: %d/%d • ", len(m.filtered), len(m.parameters)) + help
-		}
-		// If we have recent entries, mention keys 1-5
+		// Integrated help with navigation and custom keys
+		help := "↑/↓: navigate • enter: view • /: search • p: profile • esc: back • q: quit"
 		if len(m.recents) > 0 {
-			help += " • press 1-5 to switch recent profile/region"
+			help += " • 1-5: switch"
 		}
 		b.WriteString(styles.HelpStyle.Render(help))
 	}
