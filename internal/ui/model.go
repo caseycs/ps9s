@@ -115,16 +115,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.awsClients[m.currentProfile] = client
 
-		// Record recent entry and persist (keep last 5)
-		entry := config.RecentEntry{Profile: m.currentProfile, Region: msg.Region}
-		m.recents = config.AddRecentEntry(m.recents, entry, 5)
-		_ = config.SaveRecentEntries(m.recents)
-		m.parameterList.SetRecents(m.recents)
-
 		// Pass profile/region context to parameter list screen
 		m.parameterList.SetContext(m.currentProfile, msg.Region)
 
 		return m, m.parameterList.LoadParameters(client)
+
+	case types.ParametersLoadedMsg:
+		// Only add to recents if we found parameters (don't add empty results)
+		if len(msg.Parameters) > 0 {
+			entry := config.RecentEntry{Profile: m.currentProfile, Region: m.currentRegion}
+			m.recents = config.AddRecentEntry(m.recents, entry, 5)
+			_ = config.SaveRecentEntries(m.recents)
+			m.parameterList.SetRecents(m.recents)
+		}
+		// Let the parameter list screen handle the actual parameter loading
+		return m.updateCurrentScreen(msg)
 
 	case types.ViewParameterMsg:
 		m.currentScreen = ParameterViewScreen
