@@ -4,13 +4,17 @@ A beautiful terminal user interface (TUI) for managing AWS Systems Manager Param
 
 ## Features
 
-- **Multi-Profile Support**: Seamlessly switch between multiple AWS profiles
+- **Multi-Profile Support**: Seamlessly switch between multiple AWS profiles and regions
+- **Recent Contexts**: Remembers your last 5 profile/region combinations for quick switching (1-5 keys)
+- **Smart Navigation**: Press 'p' to jump directly to profile selection from any parameter list
 - **Interactive UI**: Built with Bubble Tea for a smooth terminal experience
 - **Search & Filter**: Quickly find parameters with real-time search
 - **View & Edit**: View parameter details and edit values inline
+- **JSON Support**: View and edit individual JSON keys within parameter values
+- **Copy to Clipboard**: Press 'c' to copy values to your system clipboard
 - **SecureString Support**: Automatically decrypts SecureString parameters (requires KMS permissions)
 - **All Parameter Types**: Supports String, StringList, and SecureString types
-- **Copy to Clipboard**: Press 'c' on the parameter view screen to copy the selected value (or whole parameter value) to your system clipboard
+- **Context Persistence**: Automatically remembers your last selected region for each profile
 
 ## Installation
 
@@ -102,13 +106,22 @@ ps9s
 ### Profile Selector Screen
 - **↑/↓ or j/k**: Navigate through profiles
 - **Enter**: Select a profile
+- **Esc**: No action (prevents accidental quit)
+- **q or Ctrl+C**: Quit
+
+### Region Selector Screen
+- **↑/↓ or j/k**: Navigate through regions
+- **Enter**: Select a region
+- **Esc**: Go back to profile selector
 - **q or Ctrl+C**: Quit
 
 ### Parameter List Screen
 - **↑/↓ or j/k**: Navigate through parameters
 - **Enter**: View selected parameter
 - **/**: Activate search mode
-- **Esc**: Go back to profile selector
+- **p**: Jump to profile selection
+- **1-5**: Quick switch to recent profile/region contexts
+- **Esc**: Go back to region selector
 - **q or Ctrl+C**: Quit
 
 ### Search Mode
@@ -117,8 +130,9 @@ ps9s
 - **Esc**: Clear filter and exit search mode
 
 ### Parameter View Screen
-- **↑/↓**: Scroll through parameter details
-- **e**: Edit parameter value
+- **↑/↓ or j/k**: Navigate through JSON keys (if parameter is JSON)
+- **e**: Edit parameter value (or selected JSON key)
+- **c**: Copy value to clipboard (whole parameter or selected JSON key)
 - **Esc**: Go back to parameter list
 - **q or Ctrl+C**: Quit
 
@@ -152,6 +166,12 @@ ps9s/
 ```
 
 ## Configuration
+
+### Persistent Configuration
+
+PS9S stores configuration in `~/.ps9s/`:
+- `recents.json` - Last 5 profile/region combinations for quick switching
+- `regions.json` - Last selected region for each profile
 
 ### Environment Variables
 
@@ -213,12 +233,24 @@ The application provides user-friendly error messages for common issues:
 1. Navigate to a parameter and press Enter to view it
 
 2. Press `e` to enter edit mode
+   - For JSON parameters, use ↑/↓ to select a specific key, then press `e` to edit just that key
+   - For regular parameters, `e` edits the entire value
 
 3. Modify the value
 
 4. Press `Ctrl+S` to save changes to AWS
 
 5. The application will return to the view screen with updated values
+
+### Using Recent Contexts
+
+1. After viewing parameters from different profile/region combinations, they're saved to recent contexts
+
+2. From the parameter list screen, press `1-5` to quickly switch between your last 5 contexts
+
+3. The current context is dimmed in the recent list
+
+4. Recent contexts are preserved across app restarts (saved to `~/.ps9s/recents.json`)
 
 ## Troubleshooting
 
