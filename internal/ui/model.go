@@ -40,6 +40,8 @@ type Model struct {
 	regionMapping  *config.RegionMapping
 	// Recent profile+region entries (most recent first)
 	recents []config.RecentEntry
+	// Flag to prevent reordering recents when switching via keyboard
+	switchingToRecent bool
 
 	// UI dimensions
 	width, height int
@@ -122,12 +124,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.ParametersLoadedMsg:
 		// Only add to recents if we found parameters (don't add empty results)
-		if len(msg.Parameters) > 0 {
+		// and we're not switching to an existing recent entry (keep list stable)
+		if len(msg.Parameters) > 0 && !m.switchingToRecent {
 			entry := config.RecentEntry{Profile: m.currentProfile, Region: m.currentRegion}
 			m.recents = config.AddRecentEntry(m.recents, entry, 5)
 			_ = config.SaveRecentEntries(m.recents)
 			m.parameterList.SetRecents(m.recents)
 		}
+		// Reset the flag after use
+		m.switchingToRecent = false
 		// Let the parameter list screen handle the actual parameter loading
 		return m.updateCurrentScreen(msg)
 
@@ -173,6 +178,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Don't reorder recents when switching via keyboard - keep list stable
 		// The list only reorders when selecting from the profile/region screens
+		m.switchingToRecent = true
 
 		m.parameterList.SetContext(m.currentProfile, m.currentRegion)
 		m.currentScreen = ParameterListScreen
