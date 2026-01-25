@@ -37,7 +37,7 @@ brews:
     directory: Formula
     repository:
       owner: caseycs
-      name: ps9s
+      name: homebrew-ps9s
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     test: |
       system "#{bin}/ps9s", "--help"
