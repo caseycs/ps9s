@@ -2,6 +2,9 @@ package ui
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ilia/ps9s/internal/aws"
@@ -9,6 +12,24 @@ import (
 	"github.com/ilia/ps9s/internal/types"
 	"github.com/ilia/ps9s/internal/ui/screens"
 )
+
+var debugFile *os.File
+
+func init() {
+	// Create debug file at startup - truncate if exists
+	var err error
+	debugFile, err = os.Create("/tmp/ps9s_debug.log")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create debug file: %v\n", err)
+	}
+}
+
+func debugLog(msg string, args ...interface{}) {
+	if debugFile != nil {
+		fmt.Fprintf(debugFile, msg+"\n", args...)
+		debugFile.Sync()
+	}
+}
 
 // Screen represents the current screen being displayed
 type Screen int
@@ -42,10 +63,14 @@ type Model struct {
 	recents []config.RecentEntry
 	// Flag to prevent reordering recents when switching via keyboard
 	switchingToRecent bool
+	// Debounce ESC to avoid double key events skipping multiple screens
+	escDebouncing bool
 
 	// UI dimensions
 	width, height int
 }
+
+type clearEscDebounceMsg struct{}
 
 // NewModel creates a new root model
 func NewModel(profiles []string, clientPool map[string]*aws.Client, regionMapping *config.RegionMapping) Model {
@@ -78,7 +103,42 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages for the root model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		screen := screenName(m.currentScreen)
+		debugLog("[Model.Update] Received KeyMsg(%s), currentScreen=%s", keyMsg.String(), screen)
+	}
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "esc" {
+		if m.escDebouncing {
+			return m, nil
+		}
+		m.escDebouncing = true
+
+		clearCmd := func() tea.Msg {
+			time.Sleep(75 * time.Millisecond)
+			return clearEscDebounceMsg{}
+		}
+
+		// Let ParameterList handle ESC for search cancel, but still debounce to avoid a duplicate ESC
+		// immediately triggering a back navigation.
+		if m.currentScreen == ParameterListScreen && m.parameterList.SearchActive {
+			var cmd tea.Cmd
+			m.parameterList, cmd = m.parameterList.Update(msg)
+			if cmd != nil {
+				return m, tea.Batch(cmd, clearCmd)
+			}
+			return m, clearCmd
+		}
+
+		m = m.goBack()
+		return m, clearCmd
+	}
+	
 	switch msg := msg.(type) {
+	case clearEscDebounceMsg:
+		m.escDebouncing = false
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -190,17 +250,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case types.BackMsg:
-		// Navigate back through screens
-		switch m.currentScreen {
-		case RegionSelectorScreen:
-			m.currentScreen = ProfileSelectorScreen
-		case ParameterListScreen:
-			m.currentScreen = RegionSelectorScreen
-		case ParameterViewScreen:
-			m.currentScreen = ParameterListScreen
-		case ParameterEditScreen:
-			m.currentScreen = ParameterViewScreen
-		}
+		m = m.goBack()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -211,24 +261,67 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Route to active screen
-	return m.updateCurrentScreen(msg)
+	debugLog("[Model.Update] Message not handled in switch, routing to screen handler")
+	result, cmd := m.updateCurrentScreen(msg)
+	debugLog("[Model.Update] Screen handler returned cmd=%v", cmd != nil)
+	return result, cmd
+}
+
+func (m Model) goBack() Model {
+	oldScreen := screenName(m.currentScreen)
+	debugLog("[Model.Update] Back navigation from %s", oldScreen)
+
+	switch m.currentScreen {
+	case RegionSelectorScreen:
+		m.currentScreen = ProfileSelectorScreen
+		debugLog("[Model.Update] RegionSelector -> ProfileSelector")
+	case ParameterListScreen:
+		m.currentScreen = RegionSelectorScreen
+		debugLog("[Model.Update] ParameterList -> RegionSelector")
+	case ParameterViewScreen:
+		m.currentScreen = ParameterListScreen
+		debugLog("[Model.Update] ParameterView -> ParameterList")
+	case ParameterEditScreen:
+		m.currentScreen = ParameterViewScreen
+		debugLog("[Model.Update] ParameterEdit -> ParameterView")
+	case ProfileSelectorScreen:
+		debugLog("[Model.Update] Already at ProfileSelector, no transition")
+	}
+
+	newScreen := screenName(m.currentScreen)
+	debugLog("[Model.Update] Back navigation complete: %s -> %s", oldScreen, newScreen)
+	return m
 }
 
 // updateCurrentScreen routes the message to the currently active screen
 func (m Model) updateCurrentScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	screen := screenName(m.currentScreen)
+	
+	// Log all messages
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		debugLog("[updateCurrentScreen] Routing KeyMsg(%s) to %s", keyMsg.String(), screen)
+	}
+	if _, ok := msg.(types.BackMsg); ok {
+		debugLog("[updateCurrentScreen] WARNING: BackMsg routed to updateCurrentScreen! This should go to Model.Update")
+	}
 
 	switch m.currentScreen {
 	case ProfileSelectorScreen:
 		m.profileSelector, cmd = m.profileSelector.Update(msg)
+		debugLog("[updateCurrentScreen] ProfileSelector processed, cmd=%v", cmd != nil)
 	case RegionSelectorScreen:
 		m.regionSelector, cmd = m.regionSelector.Update(msg)
+		debugLog("[updateCurrentScreen] RegionSelector processed, cmd=%v", cmd != nil)
 	case ParameterListScreen:
 		m.parameterList, cmd = m.parameterList.Update(msg)
+		debugLog("[updateCurrentScreen] ParameterList processed, cmd=%v", cmd != nil)
 	case ParameterViewScreen:
 		m.parameterView, cmd = m.parameterView.Update(msg)
+		debugLog("[updateCurrentScreen] ParameterView processed, cmd=%v", cmd != nil)
 	case ParameterEditScreen:
 		m.parameterEdit, cmd = m.parameterEdit.Update(msg)
+		debugLog("[updateCurrentScreen] ParameterEdit processed, cmd=%v", cmd != nil)
 	}
 
 	return m, cmd
@@ -249,5 +342,23 @@ func (m Model) View() string {
 		return m.parameterEdit.View()
 	default:
 		return "Unknown screen"
+	}
+}
+
+// screenName returns the name of a screen for debugging
+func screenName(s Screen) string {
+	switch s {
+	case ProfileSelectorScreen:
+		return "ProfileSelector"
+	case RegionSelectorScreen:
+		return "RegionSelector"
+	case ParameterListScreen:
+		return "ParameterList"
+	case ParameterViewScreen:
+		return "ParameterView"
+	case ParameterEditScreen:
+		return "ParameterEdit"
+	default:
+		return "Unknown"
 	}
 }

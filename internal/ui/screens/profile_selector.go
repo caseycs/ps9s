@@ -89,6 +89,8 @@ func (m ProfileSelectorModel) Update(msg tea.Msg) (ProfileSelectorModel, tea.Cmd
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "esc":
+			return m, func() tea.Msg { return types.BackMsg{} }
 		case "enter":
 			selected := m.list.SelectedItem()
 			if selected != nil {
@@ -98,9 +100,6 @@ func (m ProfileSelectorModel) Update(msg tea.Msg) (ProfileSelectorModel, tea.Cmd
 					return types.ProfileSelectedMsg{Profile: item.profile}
 				}
 			}
-		case "esc", "backspace":
-			// Don't quit on escape - user must use 'q' to quit
-			return m, nil
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}

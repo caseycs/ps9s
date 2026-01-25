@@ -58,7 +58,7 @@ type ParameterListModel struct {
 	searchInput    textinput.Model
 	spinner        spinner.Model
 	loading        bool
-	searchActive   bool
+	SearchActive   bool // Exported so root model can check it
 	client         *aws.Client
 	err            error
 	currentProfile string
@@ -144,7 +144,7 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
 		h := msg.Height - 7 // Leave space for help text, search and recents (5 lines)
-		if m.searchActive {
+		if m.SearchActive {
 			h -= 2
 		}
 		// Additional space for recents if present
@@ -155,25 +155,22 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Handle search activation
-		if msg.String() == "/" && !m.searchActive && !m.loading {
-			m.searchActive = true
-			m.searchInput.Focus()
-			return m, textinput.Blink
+		if m.loading {
+			return m, nil
 		}
 
-		// Handle search mode
-		if m.searchActive {
+		// Handle search mode - escape exits search, doesn't go back
+		if m.SearchActive {
 			switch msg.String() {
 			case "esc":
-				m.searchActive = false
+				m.SearchActive = false
 				m.searchInput.Blur()
 				m.searchInput.SetValue("")
 				m.filtered = m.parameters
 				m.updateList()
 				return m, nil
 			case "enter":
-				m.searchActive = false
+				m.SearchActive = false
 				m.searchInput.Blur()
 				return m, nil
 			default:
@@ -184,42 +181,52 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 			}
 		}
 
+		// Handle search activation
+		if msg.String() == "/" && !m.SearchActive {
+			m.SearchActive = true
+			m.searchInput.Focus()
+			return m, textinput.Blink
+		}
+
+		// Handle quit
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+
+
+
 		// Regular navigation
-		if !m.loading {
-			switch msg.String() {
-			case "enter":
-				// View selected parameter
-				if item, ok := m.list.SelectedItem().(parameterItem); ok {
-					return m, func() tea.Msg {
-						return types.ViewParameterMsg{Parameter: item.param}
-					}
+		switch msg.String() {
+		case "esc":
+			return m, func() tea.Msg { return types.BackMsg{} }
+		case "enter":
+			// View selected parameter
+			if item, ok := m.list.SelectedItem().(parameterItem); ok {
+				return m, func() tea.Msg {
+					return types.ViewParameterMsg{Parameter: item.param}
 				}
-			case "e":
-				// View selected parameter (shortcut)
-				if item, ok := m.list.SelectedItem().(parameterItem); ok {
-					return m, func() tea.Msg {
-						return types.ViewParameterMsg{Parameter: item.param}
-					}
+			}
+		case "e":
+			// View selected parameter (shortcut)
+			if item, ok := m.list.SelectedItem().(parameterItem); ok {
+				return m, func() tea.Msg {
+					return types.ViewParameterMsg{Parameter: item.param}
 				}
-			case "p":
-				// Jump to profile selection
-				return m, func() tea.Msg { return types.GoToProfileSelectionMsg{} }
-			case "backspace", "esc":
-				return m, func() tea.Msg { return types.BackMsg{} }
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			case "1", "2", "3", "4", "5":
-				// Switch to a recent entry if present
-				idx := int(msg.String()[0] - '1')
-				if idx >= 0 && idx < len(m.recents) {
-					e := m.recents[idx]
-					// Don't reload if already on this profile+region
-					if e.Profile == m.currentProfile && e.Region == m.currentRegion {
-						return m, nil
-					}
-					return m, func() tea.Msg {
-						return types.SwitchRecentMsg{Profile: e.Profile, Region: e.Region}
-					}
+			}
+		case "p":
+			// Jump to profile selection
+			return m, func() tea.Msg { return types.GoToProfileSelectionMsg{} }
+		case "1", "2", "3", "4", "5":
+			// Switch to a recent entry if present
+			idx := int(msg.String()[0] - '1')
+			if idx >= 0 && idx < len(m.recents) {
+				e := m.recents[idx]
+				// Don't reload if already on this profile+region
+				if e.Profile == m.currentProfile && e.Region == m.currentRegion {
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					return types.SwitchRecentMsg{Profile: e.Profile, Region: e.Region}
 				}
 			}
 		}
@@ -232,7 +239,7 @@ func (m ParameterListModel) Update(msg tea.Msg) (ParameterListModel, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Update list
+	// Update list for navigation keys
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	return m, cmd
@@ -254,7 +261,7 @@ func (m ParameterListModel) View() string {
 	b.WriteString(m.list.View())
 	b.WriteString("\n")
 
-	if m.searchActive {
+	if m.SearchActive {
 		b.WriteString("\n")
 		b.WriteString(styles.LabelStyle.Render("Search: "))
 		b.WriteString(m.searchInput.View())
@@ -301,7 +308,7 @@ func (m *ParameterListModel) SetContext(profile, region string) {
 func (m *ParameterListModel) SetSize(width, height int) {
 	m.list.SetWidth(width)
 	h := height - 7 // Leave space for help text, search and recents (5 lines)
-	if m.searchActive {
+	if m.SearchActive {
 		h -= 2
 	}
 	// Additional space for recents if present

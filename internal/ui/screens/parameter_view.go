@@ -156,6 +156,15 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "esc" {
+			return m, func() tea.Msg { return types.BackMsg{} }
+		}
+
+		// Handle quit
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+
 		switch msg.String() {
 		case "e":
 			// Edit parameter or selected JSON key
@@ -206,6 +215,10 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 				}
 				return m, nil
 			}
+			// Let viewport handle scrolling if not JSON mode
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		case "down", "j":
 			if m.isJSON && len(m.jsonKeys) > 0 {
 				if m.selectedIndex < len(m.jsonKeys)-1 {
@@ -214,10 +227,15 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 				}
 				return m, nil
 			}
-		case "backspace", "esc":
-			return m, func() tea.Msg { return types.BackMsg{} }
-		case "q", "ctrl+c":
-			return m, tea.Quit
+			// Let viewport handle scrolling in non-JSON mode
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
+		default:
+			// For unhandled keys, pass to viewport for scrolling
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		}
 	}
 
@@ -228,10 +246,8 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Update viewport
-	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
-	return m, cmd
+	// Shouldn't reach here for KeyMsg since all cases return
+	return m, nil
 }
 
 // View renders the parameter view

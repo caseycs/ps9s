@@ -25,6 +25,7 @@ type ParameterEditModel struct {
 	selectedKey    string                 // Currently selected key path
 	spinner        spinner.Model
 	saving         bool
+	navigatingBack bool
 	err            error
 	width          int
 	height         int
@@ -60,6 +61,7 @@ func (m *ParameterEditModel) LoadParameter(param *aws.Parameter, client *aws.Cli
 	m.client = client
 	m.err = nil
 	m.saving = false
+	m.navigatingBack = false
 	m.selectedKey = jsonKey
 
 	// Check if value is JSON
@@ -140,29 +142,25 @@ func (m ParameterEditModel) Update(msg tea.Msg) (ParameterEditModel, tea.Cmd) {
 		m.textarea.SetHeight(msg.Height - 10)
 		return m, nil
 
-	case types.SaveSuccessMsg:
-		m.saving = false
-		// Go back to view screen
-		return m, func() tea.Msg { return types.BackMsg{} }
-
 	case types.ErrorMsg:
 		m.saving = false
 		m.err = msg.Err
 		return m, nil
 
 	case tea.KeyMsg:
-		if m.saving {
+		if m.saving || m.navigatingBack {
 			return m, nil
 		}
 
 		// Handle edit mode keys
 		switch msg.String() {
-		case "esc":
-			// Go back to view screen
-			return m, func() tea.Msg { return types.BackMsg{} }
 		case "ctrl+s":
 			// Save the value
 			return m, m.saveParameter()
+		case "esc":
+			// Cancel edit and return to parameter details
+			m.navigatingBack = true
+			return m, func() tea.Msg { return types.BackMsg{} }
 		case "ctrl+c":
 			return m, tea.Quit
 		}

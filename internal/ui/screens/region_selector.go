@@ -101,6 +101,8 @@ func (m RegionSelectorModel) Update(msg tea.Msg) (RegionSelectorModel, tea.Cmd) 
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "esc":
+			return m, func() tea.Msg { return types.BackMsg{} }
 		case "enter":
 			selected := m.list.SelectedItem()
 			if selected != nil {
@@ -110,8 +112,6 @@ func (m RegionSelectorModel) Update(msg tea.Msg) (RegionSelectorModel, tea.Cmd) 
 					return types.RegionSelectedMsg{Region: item.region}
 				}
 			}
-		case "backspace", "esc":
-			return m, func() tea.Msg { return types.BackMsg{} }
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
