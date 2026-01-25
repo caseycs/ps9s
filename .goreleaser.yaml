@@ -1,0 +1,51 @@
+version: 2
+
+project_name: ps9s
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ps9s
+    main: ./cmd/ps9s
+    binary: ps9s
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: ps9s
+    builds:
+      - ps9s
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE*
+      - README.md
+
+brews:
+  - name: ps9s
+    homepage: https://github.com/caseycs/ps9s
+    description: "AWS Parameter Store TUI"
+    license: MIT
+    folder: Formula
+    repository:
+      owner: caseycs
+      name: ps9s
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    test: |
+      system "#{bin}/ps9s", "--help"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: caseycs
+    name: ps9s
