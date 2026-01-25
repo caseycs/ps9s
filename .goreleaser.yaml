@@ -34,7 +34,7 @@ brews:
     homepage: https://github.com/caseycs/ps9s
     description: "AWS Parameter Store TUI"
     license: MIT
-    folder: Formula
+    directory: Formula
     repository:
       owner: caseycs
       name: ps9s
