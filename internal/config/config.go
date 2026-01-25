@@ -5,42 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
-
-// GetProfilesFromEnv reads PS9S_AWS_PROFILES environment variable
-// and returns a list of AWS profile names.
-// If PS9S_AWS_PROFILES is not set, returns the current AWS profile (from AWS_PROFILE)
-// or "default" if no profile is specified.
-func GetProfilesFromEnv() ([]string, error) {
-	envValue := os.Getenv("PS9S_AWS_PROFILES")
-
-	// If PS9S_AWS_PROFILES is not set, use current AWS profile
-	if envValue == "" {
-		currentProfile := os.Getenv("AWS_PROFILE")
-		if currentProfile == "" {
-			currentProfile = "default"
-		}
-		return []string{currentProfile}, nil
-	}
-
-	// Split by comma and trim whitespace
-	rawProfiles := strings.Split(envValue, ",")
-	profiles := make([]string, 0, len(rawProfiles))
-
-	for _, p := range rawProfiles {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			profiles = append(profiles, trimmed)
-		}
-	}
-
-	if len(profiles) == 0 {
-		return nil, fmt.Errorf("no valid profiles found in PS9S_AWS_PROFILES")
-	}
-
-	return profiles, nil
-}
 
 // GetConfigDir returns the ps9s configuration directory
 // Uses XDG_CONFIG_HOME/.ps9s or ~/.ps9s as fallback

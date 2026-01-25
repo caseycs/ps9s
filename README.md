@@ -73,19 +73,12 @@ Simply run the application:
 ps9s
 ```
 
-By default, it will use your current AWS profile (from `AWS_PROFILE` environment variable) or the `default` profile.
+Profiles are discovered from your AWS config file:
 
-### Multi-Profile Mode (Optional)
+- `AWS_CONFIG_FILE` if set
+- otherwise `~/.aws/config`
 
-To use multiple AWS profiles, set the `PS9S_AWS_PROFILES` environment variable:
-
-```bash
-export PS9S_AWS_PROFILES="dev,staging,prod"
-```
-
-Add this to your `~/.bashrc`, `~/.zshrc`, or `~/.profile` to make it permanent.
-
-When `PS9S_AWS_PROFILES` is set, the application will show a profile selector on startup.
+If the config file can’t be read or contains no profiles, PS9S falls back to `AWS_PROFILE` (or `default`).
 
 ### Using Environment Variables for AWS Credentials
 
@@ -106,7 +99,7 @@ ps9s
 ### Profile Selector Screen
 - **↑/↓ or j/k**: Navigate through profiles
 - **Enter**: Select a profile
-- **Esc**: No action (prevents accidental quit)
+- **Esc**: Back (no-op here; stays on profile selector)
 - **q or Ctrl+C**: Quit
 
 ### Region Selector Screen
@@ -121,7 +114,7 @@ ps9s
 - **/**: Activate search mode
 - **p**: Jump to profile selection
 - **1-5**: Quick switch to recent profile/region contexts
-- **Esc**: Go back to region selector
+- **Esc**: Go back to region selector (or cancel search if search is active)
 - **q or Ctrl+C**: Quit
 
 ### Search Mode
@@ -175,14 +168,12 @@ PS9S stores configuration in `~/.ps9s/`:
 
 ### Environment Variables
 
-- `PS9S_AWS_PROFILES` (optional): Comma-separated list of AWS profile names for multi-profile mode
-  ```bash
-  export PS9S_AWS_PROFILES="profile1,profile2,profile3"
-  ```
-  If not set, uses the current `AWS_PROFILE` or `default` profile.
+- AWS config discovery:
+  - `AWS_CONFIG_FILE` - Path to AWS shared config file (defaults to `~/.aws/config`)
+  - `AWS_PROFILE` - Profile name to use as a fallback when config profile discovery fails
 
 - Standard AWS environment variables are also respected:
-  - `AWS_PROFILE` - The current AWS profile to use (when `PS9S_AWS_PROFILES` is not set)
+  - `AWS_PROFILE` - The current AWS profile to use
   - `AWS_REGION` or `AWS_DEFAULT_REGION` - **Required** when using environment variables for credentials
   - `AWS_ACCESS_KEY_ID` - Access key for authentication
   - `AWS_SECRET_ACCESS_KEY` - Secret key for authentication
@@ -210,11 +201,19 @@ The application provides user-friendly error messages for common issues:
 
 3. Press Enter to view a parameter's details
 
-### Viewing Parameters (Multi-Profile)
+### Viewing Parameters (Multiple Profiles)
 
-1. Set your profiles:
-   ```bash
-   export PS9S_AWS_PROFILES="dev,prod"
+1. Ensure your AWS shared config contains profiles (or set `AWS_CONFIG_FILE`):
+
+   ```ini
+   [default]
+   region = us-east-1
+
+   [profile dev]
+   region = us-east-1
+
+   [profile prod]
+   region = us-west-2
    ```
 
 2. Run ps9s:

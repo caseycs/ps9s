@@ -11,12 +11,13 @@ import (
 )
 
 func main() {
-	// Parse profiles from environment
-	profiles, err := config.GetProfilesFromEnv()
+	profiles, err := config.GetProfilesFromAWSConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "\nPlease set PS9S_AWS_PROFILES environment variable with comma-separated profile names.\n")
-		fmt.Fprintf(os.Stderr, "Example: export PS9S_AWS_PROFILES=dev,staging,prod\n")
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	}
+	if len(profiles) == 0 {
+		fmt.Fprintf(os.Stderr, "Error: no AWS profiles available\n")
+		fmt.Fprintf(os.Stderr, "Set AWS_CONFIG_FILE or ensure ~/.aws/config contains [default] / [profile ...] sections.\n")
 		os.Exit(1)
 	}
 
