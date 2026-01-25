@@ -2,6 +2,10 @@
 
 A beautiful terminal user interface (TUI) for managing AWS Systems Manager Parameter Store parameters across multiple AWS profiles.
 
+## Screenshots
+
+![AWS profile selector](screenshots/profile-selector.png)  ![Parameters list](screenshots/parameter-list.png) ![View parameter](screenshots/parameter-view.png) ![Edit value](screenshots/value-edit.png)
+
 ## Features
 
 - **Multi-Profile Support**: Seamlessly switch between multiple AWS profiles and regions
