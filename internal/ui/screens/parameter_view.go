@@ -183,6 +183,13 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 					return types.EditParameterMsg{Parameter: m.parameter}
 				}
 			}
+		case "a":
+			// Add new JSON key (only for JSON parameters)
+			if m.isJSON && m.parameter != nil {
+				return m, func() tea.Msg {
+					return types.AddJSONKeyMsg{Parameter: m.parameter}
+				}
+			}
 		case "c":
 			// Copy selected value (either JSON key value or whole parameter)
 			if m.parameter == nil {
@@ -284,7 +291,7 @@ func (m ParameterViewModel) View() string {
 
 	helpText := "Press 'e' to edit"
 	if m.isJSON && len(m.jsonKeys) > 0 {
-		helpText += " selected key • ↑/↓ to select"
+		helpText += " selected key • 'a' to add key • ↑/↓ to select"
 	}
 	helpText += " • 'c' to copy • 'esc' to go back • 'q' to quit"
 	b.WriteString("  " + styles.HelpStyle.Render(helpText))

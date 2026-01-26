@@ -54,3 +54,8 @@ type SwitchRecentMsg struct {
 
 // GoToProfileSelectionMsg is sent when user wants to jump to profile selection
 type GoToProfileSelectionMsg struct{}
+
+// AddJSONKeyMsg is sent when a user wants to add a new JSON key to a parameter
+type AddJSONKeyMsg struct {
+	Parameter *aws.Parameter
+}

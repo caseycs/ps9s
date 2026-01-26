@@ -40,6 +40,7 @@ const (
 	ParameterListScreen
 	ParameterViewScreen
 	ParameterEditScreen
+	JSONAddScreen
 )
 
 // Model represents the root application model
@@ -52,6 +53,7 @@ type Model struct {
 	parameterList   screens.ParameterListModel
 	parameterView   screens.ParameterViewModel
 	parameterEdit   screens.ParameterEditModel
+	jsonAdd         screens.JSONAddModel
 
 	// Shared state
 	profiles       []string
@@ -89,6 +91,7 @@ func NewModel(profiles []string, clientPool map[string]*aws.Client, regionMappin
 		parameterList:   pl,
 		parameterView:   screens.NewParameterView(),
 		parameterEdit:   screens.NewParameterEdit(),
+		jsonAdd:         screens.NewJSONAdd(),
 		profiles:        profiles,
 		awsClients:      clientPool,
 		regionMapping:   regionMapping,
@@ -149,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.parameterList.SetSize(msg.Width, msg.Height)
 		m.parameterView.SetSize(msg.Width, msg.Height)
 		m.parameterEdit.SetSize(msg.Width, msg.Height)
+		m.jsonAdd.SetSize(msg.Width, msg.Height)
 
 	case types.ProfileSelectedMsg:
 		m.currentProfile = msg.Profile
@@ -206,9 +210,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case types.EditParameterMsg:
 		m.currentScreen = ParameterEditScreen
 		client := m.awsClients[m.currentProfile]
-		// Pass profile/region context tameter edit
+		// Pass profile/region context to parameter edit
 		m.parameterEdit.SetContext(m.currentProfile, m.currentRegion)
 		return m, m.parameterEdit.LoadParameter(msg.Parameter, client, msg.JSONKey)
+
+	case types.AddJSONKeyMsg:
+		m.currentScreen = JSONAddScreen
+		client := m.awsClients[m.currentProfile]
+		// Pass profile/region context to JSON add screen
+		m.jsonAdd.SetContext(m.currentProfile, m.currentRegion)
+		return m, m.jsonAdd.LoadParameter(msg.Parameter, client)
 
 	case types.SaveSuccessMsg:
 		// Parameter saved successfully, update the view and go back
@@ -284,6 +295,9 @@ func (m Model) goBack() Model {
 	case ParameterEditScreen:
 		m.currentScreen = ParameterViewScreen
 		debugLog("[Model.Update] ParameterEdit -> ParameterView")
+	case JSONAddScreen:
+		m.currentScreen = ParameterViewScreen
+		debugLog("[Model.Update] JSONAdd -> ParameterView")
 	case ProfileSelectorScreen:
 		debugLog("[Model.Update] Already at ProfileSelector, no transition")
 	}
@@ -322,6 +336,9 @@ func (m Model) updateCurrentScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ParameterEditScreen:
 		m.parameterEdit, cmd = m.parameterEdit.Update(msg)
 		debugLog("[updateCurrentScreen] ParameterEdit processed, cmd=%v", cmd != nil)
+	case JSONAddScreen:
+		m.jsonAdd, cmd = m.jsonAdd.Update(msg)
+		debugLog("[updateCurrentScreen] JSONAdd processed, cmd=%v", cmd != nil)
 	}
 
 	return m, cmd
@@ -340,6 +357,8 @@ func (m Model) View() string {
 		return m.parameterView.View()
 	case ParameterEditScreen:
 		return m.parameterEdit.View()
+	case JSONAddScreen:
+		return m.jsonAdd.View()
 	default:
 		return "Unknown screen"
 	}
@@ -358,6 +377,8 @@ func screenName(s Screen) string {
 		return "ParameterView"
 	case ParameterEditScreen:
 		return "ParameterEdit"
+	case JSONAddScreen:
+		return "JSONAdd"
 	default:
 		return "Unknown"
 	}
