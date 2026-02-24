@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,15 +17,25 @@ import (
 var debugFile *os.File
 
 func init() {
-	// Create debug file at startup - truncate if exists
-	var err error
-	debugFile, err = os.Create("/tmp/ps9s_debug.log")
+	configDir, err := config.GetConfigDir()
+	if err != nil {
+		return
+	}
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return
+	}
+
+	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	logPath := filepath.Join(configDir, timestamp+".log")
+
+	debugFile, err = os.Create(logPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create debug file: %v\n", err)
 	}
 }
 
-func debugLog(msg string, args ...interface{}) {
+func debugLog(msg string, args ...any) {
 	if debugFile != nil {
 		fmt.Fprintf(debugFile, msg+"\n", args...)
 		debugFile.Sync()
@@ -65,14 +76,10 @@ type Model struct {
 	recents []config.RecentEntry
 	// Flag to prevent reordering recents when switching via keyboard
 	switchingToRecent bool
-	// Debounce ESC to avoid double key events skipping multiple screens
-	escDebouncing bool
 
 	// UI dimensions
 	width, height int
 }
-
-type clearEscDebounceMsg struct{}
 
 // NewModel creates a new root model
 func NewModel(profiles []string, clientPool map[string]*aws.Client, regionMapping *config.RegionMapping) Model {
@@ -111,37 +118,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		debugLog("[Model.Update] Received KeyMsg(%s), currentScreen=%s", keyMsg.String(), screen)
 	}
 
-	if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "esc" {
-		if m.escDebouncing {
-			return m, nil
-		}
-		m.escDebouncing = true
-
-		clearCmd := func() tea.Msg {
-			time.Sleep(75 * time.Millisecond)
-			return clearEscDebounceMsg{}
-		}
-
-		// Let ParameterList handle ESC for search cancel, but still debounce to avoid a duplicate ESC
-		// immediately triggering a back navigation.
+	if keyMsg, ok := msg.(tea.KeyMsg); ok && (keyMsg.String() == "esc" || keyMsg.String() == "alt+esc") {
+		// Let ParameterList handle ESC to cancel search
 		if m.currentScreen == ParameterListScreen && m.parameterList.SearchActive {
 			var cmd tea.Cmd
 			m.parameterList, cmd = m.parameterList.Update(msg)
-			if cmd != nil {
-				return m, tea.Batch(cmd, clearCmd)
-			}
-			return m, clearCmd
+			return m, cmd
 		}
 
 		m = m.goBack()
-		return m, clearCmd
-	}
-	
-	switch msg := msg.(type) {
-	case clearEscDebounceMsg:
-		m.escDebouncing = false
 		return m, nil
+	}
 
+	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height

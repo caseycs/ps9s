@@ -25,22 +25,3 @@ func TestParameterEdit_EscapeReturnsBackMsg(t *testing.T) {
 	}
 }
 
-func TestParameterEdit_EscapeDebounced(t *testing.T) {
-	m := NewParameterEdit()
-
-	param := &aws.Parameter{Name: "/test", Type: "String", Value: `{"a":"b"}`}
-	_ = m.LoadParameter(param, nil, "a")
-
-	m2, cmd1 := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd1 == nil {
-		t.Fatalf("expected cmd for first esc, got nil")
-	}
-	if _, ok := cmd1().(types.BackMsg); !ok {
-		t.Fatalf("expected types.BackMsg from first esc")
-	}
-
-	_, cmd2 := m2.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd2 != nil {
-		t.Fatalf("expected no cmd for second esc, got %v", cmd2)
-	}
-}

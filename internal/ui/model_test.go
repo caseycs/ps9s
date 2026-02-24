@@ -9,17 +9,6 @@ import (
 	"github.com/ilia/ps9s/internal/types"
 )
 
-func TestEscapeDebounce_DoesNotSkipScreens(t *testing.T) {
-	m := newTestModel([]string{"prod"})
-	m.currentScreen = ParameterEditScreen
-
-	m = updateModel(m, tea.KeyMsg{Type: tea.KeyEsc})
-	assertEqual(t, ParameterViewScreen, m.currentScreen, "esc from edit goes back one")
-
-	m = updateModel(m, tea.KeyMsg{Type: tea.KeyEsc})
-	assertEqual(t, ParameterViewScreen, m.currentScreen, "duplicate esc should be ignored")
-}
-
 func TestEscapeInSearchMode_OnlyCancelsSearch(t *testing.T) {
 	m := newTestModel([]string{"prod"})
 	m.currentScreen = ParameterListScreen
@@ -29,10 +18,9 @@ func TestEscapeInSearchMode_OnlyCancelsSearch(t *testing.T) {
 	assertEqual(t, ParameterListScreen, m.currentScreen, "esc in search mode stays on list")
 	assertEqual(t, false, m.parameterList.SearchActive, "esc in search mode cancels search")
 
-	// If ESC is delivered twice by the terminal for a single press, debounce should prevent
-	// a second ESC from triggering a back navigation.
+	// Second ESC should now navigate back normally
 	m = updateModel(m, tea.KeyMsg{Type: tea.KeyEsc})
-	assertEqual(t, ParameterListScreen, m.currentScreen, "duplicate esc should not go back")
+	assertEqual(t, RegionSelectorScreen, m.currentScreen, "second esc goes back to region selector")
 }
 
 // TestHelpers

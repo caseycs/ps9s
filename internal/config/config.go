@@ -12,7 +12,7 @@ import (
 func GetConfigDir() (string, error) {
 	configHome := os.Getenv("XDG_CONFIG_HOME")
 	if configHome != "" {
-		return filepath.Join(configHome, ".ps9s"), nil
+		return filepath.Join(configHome, "ps9s"), nil
 	}
 
 	// Fallback to ~/.ps9s

@@ -208,10 +208,9 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 				return copyResultMsg{Err: err, Text: toCopy}
 			}
 
-			clearCmd := func() tea.Msg {
-				time.Sleep(2 * time.Second)
+			clearCmd := tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
 				return clearStatusMsg{}
-			}
+			})
 
 			return m, tea.Batch(copyCmd, clearCmd)
 		case "up", "k":
