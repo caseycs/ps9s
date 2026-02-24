@@ -12,7 +12,7 @@ A beautiful terminal user interface (TUI) for managing AWS Systems Manager Param
 - **Recent Contexts**: Remembers your last 5 profile/region combinations for quick switching (1-5 keys)
 - **Search & Filter**: Quickly find parameters with real-time search
 - **View & Edit**: View parameter details and edit values inline
-- **JSON Support**: View and edit individual JSON keys within parameter values
+- **JSON Support**: View, edit, and add individual JSON keys within parameter values
 - **Copy to Clipboard**: Press 'c' to copy values to your system clipboard
 - **SecureString Support**: Automatically decrypts SecureString parameters (requires KMS permissions)
 
@@ -63,9 +63,10 @@ If the config file can’t be read or contains no profiles, PS9S falls back to `
 
 ### Configuration
 
-PS9S stores configuration in `~/.ps9s/`:
+PS9S stores configuration in `$XDG_CONFIG_HOME/ps9s/` (or `~/.ps9s/` as fallback):
 - `recents.json` - Last 5 profile/region combinations for quick switching
 - `regions.json` - Last selected region for each profile
+- `<timestamp>.log` - Debug log per session
 
 ### Dependencies
 
