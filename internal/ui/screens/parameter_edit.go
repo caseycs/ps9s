@@ -31,6 +31,7 @@ type ParameterEditModel struct {
 	height         int
 	currentProfile string
 	currentRegion  string
+	cancelSave     context.CancelFunc
 }
 
 // NewParameterEdit creates a new parameter edit screen
@@ -159,6 +160,9 @@ func (m ParameterEditModel) Update(msg tea.Msg) (ParameterEditModel, tea.Cmd) {
 			return m, m.saveParameter()
 		case "esc":
 			// Cancel edit and return to parameter details
+			if m.cancelSave != nil {
+				m.cancelSave()
+			}
 			m.navigatingBack = true
 			return m, func() tea.Msg { return types.BackMsg{} }
 		case "ctrl+c":
@@ -183,6 +187,12 @@ func (m ParameterEditModel) Update(msg tea.Msg) (ParameterEditModel, tea.Cmd) {
 
 // saveParameter saves the edited parameter value
 func (m *ParameterEditModel) saveParameter() tea.Cmd {
+	if m.cancelSave != nil {
+		m.cancelSave()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancelSave = cancel
 	m.saving = true
 	m.err = nil
 
@@ -210,7 +220,7 @@ func (m *ParameterEditModel) saveParameter() tea.Cmd {
 		m.spinner.Tick,
 		func() tea.Msg {
 			err := m.client.PutParameter(
-				context.Background(),
+				ctx,
 				m.parameter.Name,
 				newValue,
 				m.parameter.Type,
@@ -218,7 +228,6 @@ func (m *ParameterEditModel) saveParameter() tea.Cmd {
 			if err != nil {
 				return types.ErrorMsg{Err: err}
 			}
-			// Update the parameter with new value
 			updatedParam := *m.parameter
 			updatedParam.Value = newValue
 			return types.SaveSuccessMsg{Parameter: &updatedParam}
@@ -307,7 +316,9 @@ type pathPart struct {
 	index   int
 }
 
-// parsePath parses a dot notation path with array indices
+// parsePath parses a dot notation path with array indices.
+// "items[0].name" becomes [{key:"items"}, {isArray:true, index:0}, {key:"name"}]
+// so map-key lookup and array indexing are always separate steps.
 func (m *ParameterEditModel) parsePath(path string) []pathPart {
 	var parts []pathPart
 	current := ""
@@ -318,23 +329,26 @@ func (m *ParameterEditModel) parsePath(path string) []pathPart {
 		switch ch {
 		case '.':
 			if current != "" {
-				parts = append(parts, pathPart{key: current, isArray: false})
+				parts = append(parts, pathPart{key: current})
 				current = ""
 			}
 		case '[':
+			// Flush accumulated map key before the array index
 			if current != "" {
-				// This is an array access
-				endBracket := strings.Index(path[i:], "]")
-				if endBracket == -1 {
-					return nil // Invalid path
-				}
-				indexStr := path[i+1 : i+endBracket]
-				var index int
-				fmt.Sscanf(indexStr, "%d", &index)
-				parts = append(parts, pathPart{key: current, isArray: true, index: index})
+				parts = append(parts, pathPart{key: current})
 				current = ""
-				i += endBracket // Skip to after ]
 			}
+			endBracket := strings.Index(path[i:], "]")
+			if endBracket == -1 {
+				return nil // Invalid path
+			}
+			indexStr := path[i+1 : i+endBracket]
+			var index int
+			if _, err := fmt.Sscanf(indexStr, "%d", &index); err != nil {
+				return nil // Non-numeric index
+			}
+			parts = append(parts, pathPart{isArray: true, index: index})
+			i += endBracket // Skip to after ]
 		case ']':
 			// Skip, handled above
 		default:
@@ -343,7 +357,7 @@ func (m *ParameterEditModel) parsePath(path string) []pathPart {
 	}
 
 	if current != "" {
-		parts = append(parts, pathPart{key: current, isArray: false})
+		parts = append(parts, pathPart{key: current})
 	}
 
 	return parts

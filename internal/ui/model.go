@@ -168,7 +168,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// TODO: Show error in UI
 			return m, nil
 		}
-		m.awsClients[m.currentProfile] = client
+		m.awsClients = copyClientMap(m.awsClients, m.currentProfile, client)
 
 		// Pass profile/region context to parameter list screen
 		m.parameterList.SetContext(m.currentProfile, msg.Region)
@@ -234,7 +234,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// TODO: show error
 			return m, nil
 		}
-		m.awsClients[m.currentProfile] = client
+		m.awsClients = copyClientMap(m.awsClients, m.currentProfile, client)
 
 		// Don't reorder recents when switching via keyboard - keep list stable
 		// The list only reorders when selecting from the profile/region screens
@@ -371,4 +371,14 @@ func screenName(s Screen) string {
 	default:
 		return "Unknown"
 	}
+}
+
+// copyClientMap returns a shallow copy of the client map with one entry added/replaced.
+func copyClientMap(src map[string]*aws.Client, key string, val *aws.Client) map[string]*aws.Client {
+	dst := make(map[string]*aws.Client, len(src)+1)
+	for k, v := range src {
+		dst[k] = v
+	}
+	dst[key] = val
+	return dst
 }

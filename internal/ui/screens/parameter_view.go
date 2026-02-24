@@ -50,6 +50,7 @@ type ParameterViewModel struct {
 	currentProfile string
 	currentRegion  string
 	selectedIndex  int
+	cancelLoad     context.CancelFunc
 }
 
 // SetContext sets the profile and region context for the view screen
@@ -80,6 +81,13 @@ func (m ParameterViewModel) Init() tea.Cmd {
 
 // LoadParameter loads a parameter for viewing (fetches full details with value)
 func (m *ParameterViewModel) LoadParameter(param *aws.Parameter, client *aws.Client) tea.Cmd {
+	// Cancel any in-flight load
+	if m.cancelLoad != nil {
+		m.cancelLoad()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancelLoad = cancel
 	m.client = client
 	m.parameter = param
 	m.loading = true
@@ -89,8 +97,7 @@ func (m *ParameterViewModel) LoadParameter(param *aws.Parameter, client *aws.Cli
 	return tea.Batch(
 		m.spinner.Tick,
 		func() tea.Msg {
-			// Fetch full parameter with decrypted value
-			fullParam, err := client.GetParameter(context.Background(), param.Name)
+			fullParam, err := client.GetParameter(ctx, param.Name)
 			if err != nil {
 				return types.ErrorMsg{Err: err}
 			}
@@ -131,7 +138,9 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 		} else {
 			m.status = "Copied to clipboard"
 		}
-		return m, nil
+		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+			return clearStatusMsg{}
+		})
 
 	case clearStatusMsg:
 		m.status = ""
@@ -157,6 +166,9 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 		}
 
 		if msg.String() == "esc" {
+			if m.cancelLoad != nil {
+				m.cancelLoad()
+			}
 			return m, func() tea.Msg { return types.BackMsg{} }
 		}
 
@@ -202,17 +214,10 @@ func (m ParameterViewModel) Update(msg tea.Msg) (ParameterViewModel, tea.Cmd) {
 				toCopy = m.parameter.Value
 			}
 
-			// Async copy command + delayed clear status
-			copyCmd := func() tea.Msg {
+			return m, func() tea.Msg {
 				err := clipboard.WriteAll(toCopy)
 				return copyResultMsg{Err: err, Text: toCopy}
 			}
-
-			clearCmd := tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-				return clearStatusMsg{}
-			})
-
-			return m, tea.Batch(copyCmd, clearCmd)
 		case "up", "k":
 			if m.isJSON && len(m.jsonKeys) > 0 {
 				if m.selectedIndex > 0 {
@@ -359,48 +364,6 @@ func (m *ParameterViewModel) flattenJSONForView(data interface{}, prefix string)
 	return result
 }
 
-// flattenJSON flattens a JSON structure into dot notation key-value pairs
-func flattenJSON(data interface{}, prefix string) []string {
-	var result []string
-
-	switch v := data.(type) {
-	case map[string]interface{}:
-		// Sort keys for consistent output
-		keys := make([]string, 0, len(v))
-		for key := range v {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-
-		for _, key := range keys {
-			value := v[key]
-			newPrefix := key
-			if prefix != "" {
-				newPrefix = prefix + "." + key
-			}
-			result = append(result, flattenJSON(value, newPrefix)...)
-		}
-	case []interface{}:
-		for i, value := range v {
-			newPrefix := fmt.Sprintf("%s[%d]", prefix, i)
-			result = append(result, flattenJSON(value, newPrefix)...)
-		}
-	default:
-		// Leaf node - format as key: value
-		var valueStr string
-		switch val := v.(type) {
-		case string:
-			valueStr = val
-		case nil:
-			valueStr = "null"
-		default:
-			valueStr = fmt.Sprintf("%v", val)
-		}
-		result = append(result, fmt.Sprintf("%s: %s", prefix, valueStr))
-	}
-
-	return result
-}
 
 // formatParameterDetails formats the parameter details for display
 func (m ParameterViewModel) formatParameterDetails(p *aws.Parameter) string {
