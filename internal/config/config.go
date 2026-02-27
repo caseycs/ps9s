@@ -147,6 +147,22 @@ func SaveRecentEntries(entries []RecentEntry) error {
 	return nil
 }
 
+// PruneRecentEntries removes entries whose profile is not in validProfiles.
+func PruneRecentEntries(entries []RecentEntry, validProfiles []string) []RecentEntry {
+	profileSet := make(map[string]struct{}, len(validProfiles))
+	for _, p := range validProfiles {
+		profileSet[p] = struct{}{}
+	}
+
+	pruned := make([]RecentEntry, 0, len(entries))
+	for _, e := range entries {
+		if _, ok := profileSet[e.Profile]; ok {
+			pruned = append(pruned, e)
+		}
+	}
+	return pruned
+}
+
 // AddRecentEntry inserts an entry into the recents list, keeping uniqueness and max size
 func AddRecentEntry(entries []RecentEntry, e RecentEntry, max int) []RecentEntry {
 	// Remove any existing matching entry

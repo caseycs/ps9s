@@ -16,7 +16,9 @@ import (
 
 var debugFile *os.File
 
-func init() {
+// EnableDebugLogging creates a timestamped log file for debug output.
+// Must be called explicitly when --debug flag is passed.
+func EnableDebugLogging() {
 	configDir, err := config.GetConfigDir()
 	if err != nil {
 		return
@@ -85,9 +87,14 @@ type Model struct {
 func NewModel(profiles []string, clientPool map[string]*aws.Client, regionMapping *config.RegionMapping) Model {
 	pl := screens.NewParameterList()
 
-	// Load recents (non-fatal)
+	// Load recents, prune stale profiles, and persist if changed (non-fatal)
 	recents, err := config.LoadRecentEntries()
 	if err == nil {
+		pruned := config.PruneRecentEntries(recents, profiles)
+		if len(pruned) != len(recents) {
+			_ = config.SaveRecentEntries(pruned)
+		}
+		recents = pruned
 		pl.SetRecents(recents)
 	}
 

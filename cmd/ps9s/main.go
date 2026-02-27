@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -11,6 +12,13 @@ import (
 )
 
 func main() {
+	debug := flag.Bool("debug", false, "enable debug logging to file")
+	flag.Parse()
+
+	if *debug {
+		ui.EnableDebugLogging()
+	}
+
 	profiles, err := config.GetProfilesFromAWSConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
